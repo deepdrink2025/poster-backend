@@ -1,0 +1,8 @@
+fastapi[all]
+uvicorn[standard]
+pydantic-settings
+zhipuai
+playwright
+aiohttp
+aiofiles
+sniffio
