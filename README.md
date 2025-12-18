@@ -18,6 +18,8 @@
 
 ## 📂 项目结构
 
+为了清晰地分离应用逻辑，项目采用了如下结构。`app` 目录是 FastAPI 应用的核心。
+
 ```
 poster-backend/
 ├── services/
@@ -42,7 +44,7 @@ poster-backend/
 ### 1. 克隆项目
 
 ```bash
-git clone <your-repository-url>
+git clone https://gitee.com/feiji307/poster-backend.git
 cd poster-backend
 ```
 
