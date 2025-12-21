@@ -1,3 +1,9 @@
+# 必须在导入任何其他模块之前设置事件循环策略（Windows 上 Playwright 兼容性修复）
+import sys
+import asyncio
+if sys.platform == "win32":
+    asyncio.set_event_loop_policy(asyncio.WindowsSelectorEventLoopPolicy())
+
 from fastapi import FastAPI
 from fastapi.middleware.cors import CORSMiddleware
 from fastapi.staticfiles import StaticFiles

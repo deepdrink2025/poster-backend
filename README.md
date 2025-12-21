@@ -48,47 +48,44 @@ git clone https://gitee.com/feiji307/poster-backend.git
 cd poster-backend
 ```
 
-### 2. 创建并激活虚拟环境
+### 2. 安装依赖
 
-使用虚拟环境是 Python 项目的最佳实践，可以隔离项目依赖。
+本项目使用 [uv](https://github.com/astral-sh/uv) 进行依赖管理。如果你还没有安装 uv，请先安装：
 
 ```bash
-# 创建虚拟环境 (文件夹名为 venv)
-python3 -m venv venv
-
-# 激活虚拟环境
 # macOS / Linux
-source venv/bin/activate
-# Windows
-# .\venv\Scripts\activate
+curl -LsSf https://astral.sh/uv/install.sh | sh
+
+# Windows (PowerShell)
+powershell -c "irm https://astral.sh/uv/install.ps1 | iex"
 ```
 
-### 3. 安装依赖
-
-首先，安装 `requirements.txt` 中列出的所有 Python 包，然后为 Playwright 安装所需的浏览器核心。
+然后安装项目依赖和 Playwright 浏览器：
 
 ```bash
-# 安装 Python 依赖
-pip install -r requirements.txt
+# 安装 Python 依赖（uv 会自动创建虚拟环境）
+uv sync
 
 # 安装 Playwright 浏览器依赖
-playwright install
+uv run playwright install
 ```
 
-### 4. 配置环境变量
+### 3. 配置环境变量
 
 你需要一个智谱 AI 的 API Key 才能使用此服务。
 
 1.  复制 `.env.example` 文件并重命名为 `.env`。
 2.  打开 `.env` 文件，将 `your_zhipu_api_key_here` 替换为你自己的 Zhipu AI API Key。
 
-### 5. 启动应用
+### 4. 启动应用
 
-一切准备就绪！运行以下命令启动 FastAPI 开发服务器。
+一切准备就绪！使用 uv 运行以下命令启动 FastAPI 开发服务器。
 
 ```bash
-uvicorn app.main:app --reload
+uv run uvicorn app.main:app --reload
 ```
+
+> **注意**：Windows 平台由于 Playwright 兼容性问题，首次请求可能会有 1-2 秒的浏览器启动延迟。应用已自动处理兼容性问题，无需额外配置。
 
 服务器启动后，你会在终端看到类似 `Uvicorn running on http://127.0.0.1:8000` 的提示。
 
