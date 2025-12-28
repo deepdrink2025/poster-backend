@@ -52,12 +52,9 @@ async def save_artifacts(html_content: str, image_urls: list[str], final_image_b
     print(f"HTML 文件已保存到: {html_file_path}")
 
     # 2. 保存最终渲染的海报图片
-    final_image_path = os.path.join(session_dir, "final_poster.png")
+    final_image_path = os.path.join(session_dir, "final_poster.jpg")
     
-    # 3. 异步下载并保存所有原始图片
-    async with aiohttp.ClientSession() as session:
-        # 将所有保存任务（原始图片下载 + 最终图片保存）一起并行执行
-        tasks = [download_and_save_image(session, url, session_dir) for url in image_urls] + [save_final_image(final_image_bytes, final_image_path)]
-        await asyncio.gather(*tasks)
+    # 3. 仅保存最终渲染的海报图片
+    await save_final_image(final_image_bytes, final_image_path)
     
     return final_image_path

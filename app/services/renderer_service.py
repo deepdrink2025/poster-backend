@@ -186,7 +186,7 @@ async def render_html_to_image(html_content: str, width: int, height: int) -> by
     try:
         await page.set_viewport_size({"width": width, "height": height})
         await page.set_content(html_content)
-        screenshot_bytes = await page.screenshot(type="png")
+        screenshot_bytes = await page.screenshot(type="jpeg", quality=80)
         return screenshot_bytes
     finally:
         await page.close() # 每次请求后关闭页面，而不是整个浏览器
