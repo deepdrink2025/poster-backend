@@ -21,15 +21,15 @@ class Settings(BaseSettings):
 
     # --- 新增配置 ---
     # 微信小程序配置
-    WECHAT_APP_ID: str = "wx45e19bbc2f953f5f"
-    WECHAT_APP_SECRET: str = "a85ef002a12f0f05a8b0968ee8a062e4"
+    WECHAT_APP_ID: str
+    WECHAT_APP_SECRET: str
 
     # JWT 配置
-    JWT_SECRET_KEY: str = "a_very_secret_key_that_should_be_long_and_random" # 务必替换成一个复杂且随机的字符串
+    JWT_SECRET_KEY: str  # 务必在 .env 中设置一个复杂且随机的字符串
     JWT_ALGORITHM: str = "HS256"
-    JWT_ACCESS_TOKEN_EXPIRE_MINUTES: int = 60 * 24 * 7 # Token 有效期：7天
+    JWT_ACCESS_TOKEN_EXPIRE_MINUTES: int = 60 * 24 * 7  # Token 有效期：7天
 
-    # --- 调试开关 (修改此处或 .env 来控制流程) ---
+    # --- 调试开关 (通过 .env 来控制流程) ---
     # True = 跳过该步骤使用伪造数据; False = 正常调用 AI
     SKIP_PLANNING: bool = False
     SKIP_IMAGE_GENERATION: bool = False
