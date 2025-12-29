@@ -51,3 +51,13 @@ PLAN_PROMPT = """
     }
 7.  除了这个 JSON 对象，不要返回任何其他文本或解释。
 """
+
+# --- 用于生成 HTML 的用户输入模板 ---
+HTML_USER_PROMPT = """
+请为我创建一个尺寸为 {width}x{height} 像素的海报。
+
+这是我为你准备好的图片URL列表，请用它们来设计海报:
+{image_urls_str}
+
+我的核心需求是: {prompt}
+"""

@@ -1,123 +1,10 @@
-from openai import AsyncOpenAI
+from app.services.generator.planner import plan_image_generation
+from app.services.generator.painter import generate_images_from_ai
+from app.services.generator.coder import generate_html_code
+from app.utils.extract_dimensions import extract_dimensions
 from app.core.config import settings
-from app.core.prompts import SYSTEM_PROMPT, PLAN_PROMPT
-import json
-import asyncio
-import re
 import time
-
-# 使用通用的 OpenAI 客户端初始化
-# 通过设置 base_url，可以无缝切换到任何兼容 OpenAI 接口的模型服务商（如智谱、DeepSeek、Moonshot等）
-
-# 1. 聊天客户端 (火山引擎)
-chat_client = AsyncOpenAI(
-    api_key=settings.AI_CHAT_API_KEY,
-    base_url=settings.AI_CHAT_BASE_URL,
-)
-
-# 2. 生图客户端 (硅基流动)
-image_client = AsyncOpenAI(
-    api_key=settings.AI_IMAGE_API_KEY,
-    base_url=settings.AI_IMAGE_BASE_URL,
-)
-
-def extract_dimensions(prompt: str) -> tuple[int, int]:
-    """从 prompt 中提取尺寸信息，如果没有则返回默认值。"""
-    # 匹配 "横版"
-    if "横版" in prompt:
-        print("检测到'横版'关键词，使用尺寸 1200x800")
-        return 1200, 800
-    
-    # 匹配如 1920x1080, 800*600 的尺寸
-    match = re.search(r'(\d+)\s*[x*×]\s*(\d+)', prompt)
-    if match:
-        width, height = int(match.group(1)), int(match.group(2))
-        print(f"从 prompt 中提取到尺寸: {width}x{height}")
-        return width, height
-
-    # 匹配如 16:9, 4:3 的宽高比
-    match = re.search(r'(\d+)\s*:\s*(\d+)', prompt)
-    if match:
-        width = 1200
-        height = int(width * int(match.group(2)) / int(match.group(1)))
-        print(f"从 prompt 中提取到宽高比，计算出尺寸: {width}x{height}")
-        return width, height
-
-    print("未在 prompt 中发现尺寸信息，使用默认尺寸 800x1200")
-    return 800, 1200 # 默认尺寸
-
-async def plan_image_generation(prompt: str) -> dict:
-    """第一步：调用语言模型规划需要生成的图片数量和内容。"""
-    print("开始规划图片生成...")
-    try:
-        response = await chat_client.chat.completions.create(
-            model=settings.AI_CHAT_MODEL,
-            messages=[
-                {"role": "system", "content": PLAN_PROMPT},
-                {"role": "user", "content": f"我的核心需求是: {prompt}"},
-            ],
-            extra_body={
-                "thinking": {
-                    "type": "disabled",  # 不使用深度思考能力
-                    # "type": "enabled", # 使用深度思考能力
-                    # "type": "auto", # 模型自行判断是否使用深度思考能力
-                }
-            },
-            # temperature=0.5,
-        )
-        plan_str = response.choices[0].message.content
-        # 在尝试解析 JSON 之前，先检查字符串是否为空
-        if not plan_str:
-            print("AI 返回了空的图片生成计划，将使用默认计划。")
-            # 如果规划失败，默认生成一张图
-            return {"image_prompts": [prompt]}
-            
-        print(f"获取到 AI 返回的原始计划内容: {plan_str}")
-        # 使用正则表达式提取 JSON 内容，以应对 AI 可能返回的 markdown 代码块
-        match = re.search(r'\{.*\}', plan_str, re.DOTALL)
-        if match:
-            json_str = match.group(0)
-            print(f"提取到的纯净 JSON 字符串: {json_str}")
-            return json.loads(json_str)
-        else:
-            raise json.JSONDecodeError("在 AI 返回的内容中未找到有效的 JSON 对象。", plan_str, 0)
-    except json.JSONDecodeError as json_e:
-        print(f"规划图片生成时出错: JSON 解析失败。AI 返回内容: '{plan_str}'。错误: {json_e}")
-        # 如果 JSON 解析失败，默认生成一张图
-        return {"image_prompts": [prompt]}
-    except Exception as general_e:
-        print(f"规划图片生成时发生未知错误: {general_e}")
-        # 如果规划失败，默认生成一张图
-        return {"image_prompts": [prompt]}
-
-async def generate_images_from_ai(image_prompts: list[str]) -> list[str]:
-    """
-    第二步：根据规划好的图片描述列表，并行调用文生图模型生成图片。
-    """
-    print(f"准备根据 {len(image_prompts)} 个描述生成图片...")
-
-    async def generate_single_image(p: str) -> str:
-        print(f"向 AI 发送生图 prompt: {p}")
-        try:
-            response = await image_client.images.generate(
-                model=settings.AI_IMAGE_MODEL,
-                prompt=p,
-            )
-            return response.data[0].url
-        except Exception as e:
-            print(f"生成单张图片时出错: {e}")
-            return "" # 返回空字符串表示失败
-
-    # 使用 asyncio.gather 并行执行所有图片的生成任务
-    tasks = [generate_single_image(p) for p in image_prompts]
-    image_urls = await asyncio.gather(*tasks)
-    
-    # 过滤掉生成失败的空字符串
-    successful_urls = [url for url in image_urls if url]
-    print(f"成功生成 {len(successful_urls)} 张图片。")
-    if not successful_urls:
-        raise Exception("所有图片生成均失败。")
-    return successful_urls
+import asyncio
 
 async def generate_html_from_ai(prompt: str) -> tuple[str, int, int, list[str]]:
     """
@@ -125,53 +12,66 @@ async def generate_html_from_ai(prompt: str) -> tuple[str, int, int, list[str]]:
     返回: (html_content, width, height, image_urls)
     """
     print(f"向 AI 发送总任务 prompt: {prompt}")
+    
+    # 打印调试状态
+    if any([settings.SKIP_PLANNING, settings.SKIP_IMAGE_GENERATION, settings.SKIP_HTML_GENERATION]):
+        print(f"⚠️ [DEBUG模式] 规划跳过: {settings.SKIP_PLANNING}, 生图跳过: {settings.SKIP_IMAGE_GENERATION}, HTML跳过: {settings.SKIP_HTML_GENERATION}")
+
     try:
         # 1. 从 prompt 中提取尺寸
         width, height = extract_dimensions(prompt)
 
         # 2. 规划图片生成
-        plan_start = time.time()
-        plan = await plan_image_generation(prompt)
-        image_prompts = plan.get("image_prompts", [prompt])
-        print(f"  [AI Detail] 图片规划耗时: {time.time() - plan_start:.2f}秒")
-
-        # 3. 根据规划生成图片
-        img_gen_start = time.time()
-        image_urls = await generate_images_from_ai(image_prompts)
-        print(f"  [AI Detail] 图片生成耗时: {time.time() - img_gen_start:.2f}秒")
-        
-        # 4. 生成最终的 HTML
-        print("所有图片已生成，开始生成最终 HTML...")
-        html_gen_start = time.time()
-        # 将图片 URL 列表格式化为字符串，方便注入到 prompt 中
-        image_urls_str = "\n".join(image_urls)
-        html_prompt_content = f"请为我创建一个尺寸为 {width}x{height} 像素的海报。\n\n这是我为你准备好的图片URL列表，请用它们来设计海报:\n{image_urls_str}\n\n我的核心需求是: {prompt}"
-        
-        response = await chat_client.chat.completions.create(
-            model=settings.AI_CHAT_MODEL,
-            messages=[
-                {"role": "system", "content": SYSTEM_PROMPT},
-                {"role": "user", "content": html_prompt_content},
-            ],
-            extra_body={
-                "thinking": {
-                    "type": "disabled",  # 不使用深度思考能力
-                    # "type": "enabled", # 使用深度思考能力
-                    # "type": "auto", # 模型自行判断是否使用深度思考能力
-                }
-            },
-            # temperature=0.8,
-        )
-        # print(f"HTML 生成提示词:\n{SYSTEM_PROMPT, html_prompt_content}")
-        html_content = response.choices[0].message.content
-        print(f"  [AI Detail] HTML 代码生成耗时: {time.time() - html_gen_start:.2f}秒")
-        print("成功从 AI 获取 HTML 内容。")
-        # 使用正则表达式更稳定地移除 AI 可能返回的代码块标记
-        match = re.search(r"```html(.*)```", html_content, re.DOTALL)
-        if match:
-            clean_html = match.group(1).strip()
+        if settings.SKIP_PLANNING:
+            print("  [DEBUG] 跳过规划，直接使用原始提示词作为图片描述")
+            image_prompts = [prompt]
         else:
-            clean_html = html_content.strip().replace("```html", "").replace("```", "")
+            plan_start = time.time()
+            plan = await plan_image_generation(prompt)
+            image_prompts = plan.get("image_prompts", [prompt])
+            print(f"  [AI Detail] 图片规划耗时: {time.time() - plan_start:.2f}秒")
+
+        # 3 & 4. 并行执行：生成图片 和 生成 HTML
+        # 为了并行，我们需要先定义 HTML 生成时使用的临时图片占位符
+        temp_image_urls = [f"https://temp-image-placeholder.local/{i}.png" for i in range(len(image_prompts))]
+        
+        async def task_generate_images():
+            if settings.SKIP_IMAGE_GENERATION:
+                print("  [DEBUG] 跳过生图，生成占位图 URL")
+                # 生成带尺寸和序号的占位图，方便前端查看布局
+                return [f"https://placehold.co/{width}x{height}/png?text=Image+{i+1}" for i in range(len(image_prompts))]
+            else:
+                t_start = time.time()
+                urls = await generate_images_from_ai(image_prompts)
+                print(f"  [AI Detail] 图片生成耗时: {time.time() - t_start:.2f}秒")
+                return urls
+
+        async def task_generate_html():
+            if settings.SKIP_HTML_GENERATION:
+                print("  [DEBUG] 跳过 HTML 生成，返回简单测试页面")
+                return f"<html><body style='background:#f0f0f0; display:flex; justify-content:center; align-items:center; height:100vh;'><h1>DEBUG MODE</h1><p>Prompt: {prompt}</p></body></html>"
+            else:
+                print("  [并行任务] 开始生成 HTML (使用占位符)...")
+                t_start = time.time()
+                # 使用临时占位符 URL 生成 HTML
+                html = await generate_html_code(prompt, temp_image_urls, width, height)
+                print(f"  [AI Detail] HTML 代码生成耗时: {time.time() - t_start:.2f}秒")
+                return html
+
+        print("启动并行任务：图片生成 & HTML生成...")
+        parallel_start = time.time()
+        
+        # 并发执行
+        image_urls, clean_html = await asyncio.gather(task_generate_images(), task_generate_html())
+        
+        print(f"  [AI Detail] 并行阶段总耗时: {time.time() - parallel_start:.2f}秒")
+
+        # 5. 拼接：将 HTML 中的占位符替换为真实图片 URL
+        if not settings.SKIP_HTML_GENERATION:
+            print("正在将真实图片 URL 注入 HTML...")
+            for temp_url, real_url in zip(temp_image_urls, image_urls):
+                clean_html = clean_html.replace(temp_url, real_url)
+            
         return clean_html, width, height, image_urls
 
     except Exception as e:

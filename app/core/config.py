@@ -7,7 +7,7 @@ class Settings(BaseSettings):
     # --- 聊天模型配置 (火山引擎) ---
     AI_CHAT_API_KEY: str
     AI_CHAT_BASE_URL: str = "https://ark.cn-beijing.volces.com/api/v3"
-    AI_CHAT_MODEL: str = "doubao-seed-1-6-251015" # 注意：火山引擎这里通常需要填 Endpoint ID (如 ep-2025...)
+    AI_CHAT_MODEL: str = "deepseek-v3-2-251201" # 注意：火山引擎这里通常需要填 Endpoint ID (如 ep-2025...)
 
     # --- 生图模型配置 (硅基流动) ---
     AI_IMAGE_API_KEY: str
@@ -29,6 +29,11 @@ class Settings(BaseSettings):
     JWT_ALGORITHM: str = "HS256"
     JWT_ACCESS_TOKEN_EXPIRE_MINUTES: int = 60 * 24 * 7 # Token 有效期：7天
 
+    # --- 调试开关 (修改此处或 .env 来控制流程) ---
+    # True = 跳过该步骤使用伪造数据; False = 正常调用 AI
+    SKIP_PLANNING: bool = False
+    SKIP_IMAGE_GENERATION: bool = False
+    SKIP_HTML_GENERATION: bool = False
 
 # 创建一个全局可用的配置实例
 settings = Settings()
