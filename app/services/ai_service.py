@@ -70,6 +70,8 @@ async def generate_html_from_ai(prompt: str) -> tuple[str, int, int, list[str]]:
         if not settings.SKIP_HTML_GENERATION:
             print("正在将真实图片 URL 注入 HTML...")
             for temp_url, real_url in zip(temp_image_urls, image_urls):
+                if temp_url not in clean_html:
+                    print(f"⚠️ [警告] 占位符 {temp_url} 未在 HTML 中找到，AI 可能篡改了 URL 格式，导致图片无法显示！")
                 clean_html = clean_html.replace(temp_url, real_url)
             
         return clean_html, width, height, image_urls

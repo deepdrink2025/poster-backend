@@ -184,9 +184,64 @@ async def render_html_to_image(html_content: str, width: int, height: int) -> by
     """
     page = await browser_manager.get_page()
     try:
+        # 1. 初始设置为标准高度，确保 CSS 布局计算正确
         await page.set_viewport_size({"width": width, "height": height})
         await page.set_content(html_content)
-        screenshot_bytes = await page.screenshot(type="jpeg", quality=80)
+        
+        # 2. 等待网络空闲，确保资源加载完毕
+        await page.wait_for_load_state("networkidle")
+        
+        # 核心修复：显式等待所有图片加载完成
+        # 即使 set_content 默认等待 load 事件，但在某些动态渲染或网络波动下，
+        # 显式检查 img.complete 属性是最稳妥的方案。
+        await page.evaluate("""
+            async () => {
+                const selectors = Array.from(document.querySelectorAll("img"));
+                await Promise.all(selectors.map(img => {
+                    if (img.complete) return;
+                    return new Promise((resolve, reject) => {
+                        img.onload = resolve;
+                        img.onerror = resolve;
+                    });
+                }));
+            }
+        """)
+        
+        # 核心修复：智能解除 CSS 高度限制
+        # 只有当内容实际高度超过视口高度时，才解除 height: fixed 限制
+        # 这样既能支持长图，又能避免短图时因 height: auto 导致 height: 100% 失效产生的留白
+        await page.evaluate(f"""
+            () => {{
+                const viewportHeight = {height};
+                // 检查 body 的 scrollHeight
+                const contentHeight = document.body.scrollHeight;
+                
+                // 只有当内容高度明显超过预设高度时 (给予 5px 误差)，才切换为 auto 模式
+                if (contentHeight > viewportHeight + 5) {{
+                    document.documentElement.style.height = 'auto';
+                    document.body.style.height = 'auto';
+                    document.documentElement.style.overflow = 'visible';
+                    document.body.style.overflow = 'visible';
+                    document.body.style.minHeight = '100vh';
+                }} else {{
+                    // 内容未溢出：强制使用视口高度，确保背景铺满
+                    document.body.style.height = viewportHeight + 'px';
+                }}
+            }}
+        """)
+
+        # 3. 智能调整：检测内容实际高度
+        # 如果内容超出了预设高度，自动拉长 Viewport 以适应内容
+        content_height = await page.evaluate("() => document.body.scrollHeight")
+        if content_height > height:
+            print(f"检测到内容高度 ({content_height}px) 超过预设高度 ({height}px)，正在调整视口...")
+            await page.set_viewport_size({"width": width, "height": content_height})
+        
+        # 4. 额外缓冲时间，防止渲染未完成
+        await asyncio.sleep(0.5)
+        
+        # 5. 开启 full_page=True 截取完整页面，并提高图片质量
+        screenshot_bytes = await page.screenshot(type="jpeg", quality=85, full_page=True)
         return screenshot_bytes
     finally:
         await page.close() # 每次请求后关闭页面，而不是整个浏览器
